@@ -1189,19 +1189,10 @@ kotlin {
         val desktopMain by getting {
             kotlin.srcDir(fullPluginSourceDir)
             kotlin.srcDir(fullTrailerSourceDir)
-            kotlin.srcDir(
-                if (isWindowsHost) {
-                    "src/windowsDesktopMain/kotlin"
-                } else {
-                    "src/nonWindowsDesktopMain/kotlin"
-                },
-            )
             resources.srcDir(desktopSentryResourceDir)
             dependencies {
                 implementation(compose.desktop.currentOs)
-                if (!isWindowsHost) {
-                    implementation(project(":composeMediaPlayer"))
-                }
+                implementation(project(":composeMediaPlayer"))
                 implementation(libs.kotlinx.coroutines.swing)
                 implementation(libs.ktor.client.cio)
                 implementation("com.squareup.okhttp3:okhttp:4.12.0")

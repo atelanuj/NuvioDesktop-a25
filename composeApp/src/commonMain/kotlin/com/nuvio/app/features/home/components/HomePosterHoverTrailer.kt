@@ -12,12 +12,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import com.nuvio.app.features.details.MetaDetailsRepository
 import com.nuvio.app.features.details.components.HeroTrailerPlayerSurface
-import com.nuvio.app.features.details.selectHeroTrailer
-import com.nuvio.app.features.details.youtubePlaybackUrl
 import com.nuvio.app.features.home.MetaPreview
-import com.nuvio.app.features.trailer.TrailerPlaybackResolver
 import com.nuvio.app.features.trailer.TrailerPlaybackSource
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 
 private const val HoverTrailerFadeDurationMillis = 480
@@ -75,16 +71,12 @@ internal fun HomePosterHoverTrailer(
 
 internal suspend fun resolveHomePosterHoverTrailerPlaybackSource(
     item: MetaPreview,
-): TrailerPlaybackSource? {
+): TrailerPlaybackSource? = try {
     val meta = MetaDetailsRepository.peek(type = item.type, id = item.id)
         ?: MetaDetailsRepository.fetch(type = item.type, id = item.id)
-    val trailer = selectHeroTrailer(meta?.trailers.orEmpty())
-        ?: return null
-    return try {
-        TrailerPlaybackResolver.resolveFromYouTubeUrl(trailer.youtubePlaybackUrl())
-    } catch (cancellation: CancellationException) {
-        throw cancellation
-    } catch (_: Throwable) {
-        null
-    }
+    com.nuvio.app.features.details.resolveHeroTrailerPlaybackSource(meta?.trailers.orEmpty())
+} catch (cancellation: kotlinx.coroutines.CancellationException) {
+    throw cancellation
+} catch (_: Exception) {
+    null
 }

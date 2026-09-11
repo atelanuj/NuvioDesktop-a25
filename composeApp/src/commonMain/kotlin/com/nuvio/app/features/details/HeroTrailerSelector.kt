@@ -35,3 +35,26 @@ private fun MetaTrailer.heroTrailerPriority(): Int {
         else -> 0
     }
 }
+
+/** Try alternate TMDB/addon YouTube links when the preferred upload is unavailable. */
+internal suspend fun resolveHeroTrailerPlaybackSource(
+    trailers: List<MetaTrailer>,
+    resolve: suspend (String) -> com.nuvio.app.features.trailer.TrailerPlaybackSource? =
+        com.nuvio.app.features.trailer.TrailerPlaybackResolver::resolveFromYouTubeUrl,
+): com.nuvio.app.features.trailer.TrailerPlaybackSource? {
+    val remaining = trailers.toMutableList()
+    var attempts = 0
+    while (remaining.isNotEmpty() && attempts++ < 3) {
+        val candidate = selectHeroTrailer(remaining) ?: return null
+        remaining.removeAll { it.key == candidate.key }
+        val source = try {
+            kotlinx.coroutines.withTimeoutOrNull(15_000L) { resolve(candidate.youtubePlaybackUrl()) }
+        } catch (cancellation: kotlinx.coroutines.CancellationException) {
+            throw cancellation
+        } catch (_: Exception) {
+            null
+        }
+        if (source != null) return source
+    }
+    return null
+}

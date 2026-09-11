@@ -1,5 +1,9 @@
 package com.nuvio.app.features.details
 
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CancellationException
+import com.nuvio.app.features.trailer.TrailerPlaybackSource
+import kotlin.test.assertFailsWith
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -52,6 +56,35 @@ class HeroTrailerSelectorTest {
         assertNull(selectHeroTrailer(emptyList()))
         assertNull(selectHeroTrailer(listOf(trailer(id = "blank", key = ""))))
         assertNull(selectHeroTrailer(listOf(trailer(id = "other", site = "Vimeo"))))
+    }
+
+    @Test
+    fun `tries alternate links after an unavailable official upload`() = runBlocking {
+        val calls = mutableListOf<String>()
+        val expected = TrailerPlaybackSource("https://example.com/trailer.mp4")
+        val result = resolveHeroTrailerPlaybackSource(listOf(
+            trailer(id = "official", official = true),
+            trailer(id = "fallback"),
+            trailer(id = "duplicate", key = "official"),
+        )) { url ->
+            calls += url
+            if (url.endsWith("official")) throw IllegalStateException("Unavailable")
+            expected
+        }
+        assertEquals(expected, result)
+        assertEquals(listOf("https://www.youtube.com/watch?v=official", "https://www.youtube.com/watch?v=fallback"), calls)
+    }
+
+    @Test
+    fun `cancellation stops fallback requests`() = runBlocking {
+        var calls = 0
+        assertFailsWith<CancellationException> {
+            resolveHeroTrailerPlaybackSource(listOf(trailer(id = "one"), trailer(id = "two"))) {
+                calls++
+                throw CancellationException("Navigated away")
+            }
+        }
+        assertEquals(1, calls)
     }
 
     private fun trailer(

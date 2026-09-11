@@ -35,7 +35,5 @@ dependencyResolutionManagement {
 include(":composeApp")
 include(":androidApp")
 include(":desktopSentry")
-if (!System.getProperty("os.name").contains("win", ignoreCase = true)) {
-    include(":composeMediaPlayer")
-    project(":composeMediaPlayer").projectDir = file("vendor/compose-media-player/mediaplayer")
-}
+include(":composeMediaPlayer")
+project(":composeMediaPlayer").projectDir = file("vendor/compose-media-player/mediaplayer")

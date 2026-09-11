@@ -71,6 +71,8 @@ import com.nuvio.app.features.details.MetaDetails
 import com.nuvio.app.features.details.formatRuntimeForDisplay
 import com.nuvio.app.features.mdblist.MdbListMetadataService.PROVIDER_IMDB
 import com.nuvio.app.features.tmdb.originalTmdbImageUrl
+import nuvio.composeapp.generated.resources.trailer_mute
+import nuvio.composeapp.generated.resources.trailer_unmute
 import nuvio.composeapp.generated.resources.Res
 import nuvio.composeapp.generated.resources.detail_logo_content_description
 import nuvio.composeapp.generated.resources.hero_add_to_library
@@ -366,7 +368,7 @@ fun DesktopDetailHero(
                         } else {
                             Icons.AutoMirrored.Rounded.VolumeUp
                         },
-                        contentDescription = null,
+                        contentDescription = stringResource(if (heroTrailerMuted) Res.string.trailer_unmute else Res.string.trailer_mute),
                         modifier = Modifier.size(24.dp),
                     )
                 }

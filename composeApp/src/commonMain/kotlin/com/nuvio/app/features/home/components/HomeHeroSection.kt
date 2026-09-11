@@ -29,6 +29,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.nuvio.app.core.build.AppFeaturePolicy
+import com.nuvio.app.features.details.HeroTrailerAudioState
+import com.nuvio.app.features.details.MetaScreenSettingsRepository
+import com.nuvio.app.features.details.components.HeroTrailerPlayerSurface
+import com.nuvio.app.features.trailer.TrailerPlaybackSource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -127,8 +142,38 @@ fun HomeHeroSection(
     var pagerDragActive by remember { mutableStateOf(false) }
     val autoScrollPage = pagerState.currentPage
 
-    LaunchedEffect(autoScrollPage, items.size) {
-        if (items.size <= 1) return@LaunchedEffect
+    val settings by MetaScreenSettingsRepository.uiState.collectAsState()
+    LaunchedEffect(Unit) { MetaScreenSettingsRepository.ensureLoaded() }
+    val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsState()
+    val heroVisible by remember(listState) {
+        derivedStateOf {
+            listState == null || listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == 0 }
+                ?.let { hero -> hero.offset + hero.size / 2 > listState.layoutInfo.viewportStartOffset } == true
+        }
+    }
+    val activeItem = items[autoScrollPage.coerceIn(items.indices)]
+    val trailerEnabled = AppFeaturePolicy.heroTrailerPlaybackSupported && settings.heroTrailerPlayback
+    val trailerActive = trailerEnabled && heroVisible && lifecycleState.isAtLeast(Lifecycle.State.RESUMED) &&
+        !pagerDragActive && !pagerState.isScrollInProgress
+    var trailerSource by remember(activeItem.id, activeItem.type) { mutableStateOf<TrailerPlaybackSource?>(null) }
+    var trailerReady by remember(activeItem.id, activeItem.type) { mutableStateOf(false) }
+    var trailerFinished by remember(activeItem.id, activeItem.type) { mutableStateOf(false) }
+    val muted by HeroTrailerAudioState.muted.collectAsState()
+    val trailerAlpha by animateFloatAsState(
+        if (trailerReady && trailerActive && !trailerFinished) 1f else 0f,
+        tween(600), label = "home_hero_trailer_alpha",
+    )
+    LaunchedEffect(activeItem.id, activeItem.type, trailerActive) {
+        if (!trailerActive || trailerFinished || trailerSource != null) return@LaunchedEffect
+        delay(1_500L)
+        trailerSource = kotlinx.coroutines.withTimeoutOrNull(45_000L) {
+            resolveHomePosterHoverTrailerPlaybackSource(activeItem)
+        }
+        if (trailerSource == null) trailerFinished = true
+    }
+    val holdForTrailer = trailerEnabled && !trailerFinished
+    LaunchedEffect(autoScrollPage, items.size, holdForTrailer, heroVisible) {
+        if (items.size <= 1 || !heroVisible || holdForTrailer) return@LaunchedEffect
         delay(HERO_AUTO_SCROLL_INTERVAL_MS)
         while (pagerState.isScrollInProgress) {
             delay(100L)
@@ -181,9 +226,25 @@ fun HomeHeroSection(
                 Box(modifier = Modifier.fillMaxSize())
             }
 
+            val trailerBackground: @Composable () -> Unit = {
+                trailerSource?.takeIf { trailerEnabled && !trailerFinished }?.let { source ->
+                    HeroTrailerPlayerSurface(
+                        sourceUrl = source.videoUrl,
+                        sourceAudioUrl = source.audioUrl,
+                        playWhenReady = trailerActive,
+                        muted = muted,
+                        fillFrame = true,
+                        modifier = Modifier.fillMaxSize().graphicsLayer { alpha = trailerAlpha },
+                        onReady = { trailerReady = true },
+                        onEnded = { trailerReady = false; trailerFinished = true },
+                        onError = { trailerReady = false; trailerFinished = true },
+                    )
+                }
+            }
             if (isDesktop) {
                 DesktopHomeHeroFrame(
                     items = items,
+                    trailerBackground = trailerBackground,
                     pagerState = pagerState,
                     listState = listState,
                     layout = layout,
@@ -201,6 +262,7 @@ fun HomeHeroSection(
             } else {
                 DefaultHomeHeroFrame(
                     items = items,
+                    trailerBackground = trailerBackground,
                     pagerState = pagerState,
                     listState = listState,
                     layout = layout,
@@ -211,6 +273,24 @@ fun HomeHeroSection(
                     coroutineScope = coroutineScope,
                     onItemClick = onItemClick,
                 )
+            }
+            if (trailerReady && trailerActive && !trailerFinished) {
+                Surface(
+                    onClick = HeroTrailerAudioState::toggleMuted,
+                    modifier = Modifier.align(Alignment.TopEnd)
+                        .padding(top = 32.dp, end = layout.contentHorizontalPadding + if (isFullscreenActionSupported) 60.dp else 0.dp)
+                        .size(48.dp),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.82f),
+                ) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Icon(
+                            if (muted) Icons.AutoMirrored.Rounded.VolumeOff else Icons.AutoMirrored.Rounded.VolumeUp,
+                            contentDescription = stringResource(if (muted) Res.string.trailer_unmute else Res.string.trailer_mute),
+                            tint = MaterialTheme.colorScheme.onSurface,
+                        )
+                    }
+                }
             }
         }
     }
@@ -390,6 +470,7 @@ private fun HeroDesktopContentLayers(
 @Composable
 private fun DefaultHomeHeroFrame(
     items: List<MetaPreview>,
+    trailerBackground: @Composable () -> Unit,
     pagerState: PagerState,
     listState: LazyListState?,
     layout: HomeHeroLayout,
@@ -413,6 +494,7 @@ private fun DefaultHomeHeroFrame(
             stretchPx = stretchPx,
             includePagerNeighbors = includePagerNeighbors,
         )
+        trailerBackground()
 
         Box(
             modifier = Modifier
@@ -503,6 +585,7 @@ private fun DefaultHomeHeroFrame(
 @Composable
 private fun DesktopHomeHeroFrame(
     items: List<MetaPreview>,
+    trailerBackground: @Composable () -> Unit,
     pagerState: PagerState,
     listState: LazyListState?,
     layout: HomeHeroLayout,
@@ -535,6 +618,7 @@ private fun DesktopHomeHeroFrame(
             includePagerNeighbors = includePagerNeighbors,
             desktopFrame = true,
         )
+        trailerBackground()
 
         Box(
             modifier = Modifier

@@ -1,9 +1,5 @@
 package com.nuvio.app.core.build
 
-private val isWindowsDesktop = System.getProperty("os.name")
-    ?.startsWith("Windows", ignoreCase = true)
-    ?: false
-
 actual object AppFeaturePolicy {
     actual val pluginsEnabled: Boolean = true
     actual val downloadsEnabled: Boolean = true
@@ -16,8 +12,8 @@ actual object AppFeaturePolicy {
     actual val p2pEnabled: Boolean = true
     actual val externalPlayerSupported: Boolean = false
     actual val trailerPlaybackMode: TrailerPlaybackMode =
-        if (isWindowsDesktop) TrailerPlaybackMode.EXTERNAL else TrailerPlaybackMode.IN_APP
-    actual val heroTrailerPlaybackSupported: Boolean = !isWindowsDesktop
+        TrailerPlaybackMode.IN_APP
+    actual val heroTrailerPlaybackSupported: Boolean = true
     actual val inAppUpdaterEnabled: Boolean = true
     actual val imdbRatingLogoEnabled: Boolean = true
     actual val mediaPlaybackForegroundServiceEnabled: Boolean = false

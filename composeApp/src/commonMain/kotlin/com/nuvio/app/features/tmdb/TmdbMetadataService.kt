@@ -880,7 +880,7 @@ object TmdbMetadataService {
         }
 
         if (enrichment != null && settings.useTrailers && enrichment.trailers.isNotEmpty()) {
-            updated = updated.copy(trailers = enrichment.trailers)
+            updated = updated.copy(trailers = (enrichment.trailers + meta.trailers).distinctBy { it.site.lowercase() to it.key })
         }
 
         return updated

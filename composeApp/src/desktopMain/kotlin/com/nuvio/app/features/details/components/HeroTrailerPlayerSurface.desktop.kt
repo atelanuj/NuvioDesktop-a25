@@ -71,6 +71,7 @@ private fun DesktopTrailerPlayerSession(
 ) {
     val player = rememberVideoPlayerState()
     val callbackScope = rememberCoroutineScope()
+    val latestPlayWhenReady = rememberUpdatedState(playWhenReady)
     val latestOnReady = rememberUpdatedState(onReady)
     val latestOnEnded = rememberUpdatedState(onEnded)
     val latestOnError = rememberUpdatedState(onError)
@@ -134,7 +135,7 @@ private fun DesktopTrailerPlayerSession(
             player.seekTo(normalizedPosition)
         }
         mediaReady = true
-        if (playWhenReady) {
+        if (latestPlayWhenReady.value) {
             player.play()
         }
         TrailerExtractionPlatform.diagnostic("compose player ready playing=$playWhenReady")

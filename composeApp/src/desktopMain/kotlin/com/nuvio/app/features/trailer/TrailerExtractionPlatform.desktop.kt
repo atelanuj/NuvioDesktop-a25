@@ -98,6 +98,14 @@ internal object TrailerExtractionPlatform {
         bestVideo: StreamCandidate?,
         bestAudio: StreamCandidate?,
     ): TrailerPlaybackSource? = withContext(Dispatchers.IO) {
+        // Windows Media Foundation accepts muxed media; its player does not attach
+        // a separate audio URL. Keep sound available instead of selecting silent video.
+        if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+            for (url in listOfNotNull(bestProgressive?.url, bestManifest?.manifestUrl).distinct()) {
+                resolveReachableUrlOrNull(url)?.let { return@withContext TrailerPlaybackSource(it) }
+            }
+            return@withContext null
+        }
         val bestCombinedIsManifest = bestManifest != null &&
             (bestProgressive == null || bestManifest.height > bestProgressive.height)
         val preferManifestPlayback = bestManifest != null &&

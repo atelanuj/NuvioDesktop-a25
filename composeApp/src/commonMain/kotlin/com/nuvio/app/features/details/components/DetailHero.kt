@@ -211,7 +211,7 @@ fun DetailHero(
                     ) { muted ->
                         Icon(
                             imageVector = if (muted) Icons.Rounded.VolumeOff else Icons.Rounded.VolumeUp,
-                            contentDescription = null,
+                            contentDescription = stringResource(if (muted) Res.string.trailer_unmute else Res.string.trailer_mute),
                             tint = Color.White,
                             modifier = Modifier.size(muteIconSize),
                         )

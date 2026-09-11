@@ -75,6 +75,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nuvio.app.core.ui.NuvioAsyncImage as AsyncImage
 import co.touchlab.kermit.Logger
@@ -698,6 +700,7 @@ fun MetaDetailsScreen(
                 var heroTrailerReady by remember(meta.id, heroTrailerCandidate?.id) { mutableStateOf(false) }
                 var heroTrailerFinished by remember(meta.id, heroTrailerCandidate?.id) { mutableStateOf(false) }
                 val heroTrailerMuted by HeroTrailerAudioState.muted.collectAsStateWithLifecycle()
+                val trailerLifecycle by LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
                 LaunchedEffect(
                     heroTrailerPlaybackEnabled,
                     heroTrailerCandidate?.id,
@@ -710,9 +713,8 @@ fun MetaDetailsScreen(
                     if (!deferredMetaWorkAllowed || !heroTrailerPlaybackEnabled || heroTrailerCandidate == null) {
                         return@LaunchedEffect
                     }
-                    val resolvedSource = runCatching {
-                        TrailerPlaybackResolver.resolveFromYouTubeUrl(heroTrailerCandidate.youtubePlaybackUrl())
-                    }.getOrNull()
+                    delay(1_500L)
+                    val resolvedSource = resolveHeroTrailerPlaybackSource(meta.trailers)
                     if (resolvedSource == null) {
                         heroTrailerFinished = true
                     } else {
@@ -964,7 +966,8 @@ fun MetaDetailsScreen(
                     ?.audioUrl
                     ?.takeIf { heroTrailerSourceUrl != null && it.isNotBlank() }
                 val heroTrailerPlayWhenReady = heroTrailerSourceUrl != null &&
-                    !isLeavingDetails &&
+                    !isLeavingDetails && selectedTrailer == null &&
+                    trailerLifecycle.isAtLeast(Lifecycle.State.RESUMED) &&
                     !isHeroCollapsed.value
                 val headerTarget = if (isHeroCollapsed.value) 1f else 0f
                 val headerProgressState = animateFloatAsState(

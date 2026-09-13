@@ -187,6 +187,13 @@ fun DetailHero(
                                 onClick = onHeroTrailerMuteToggle,
                             ),
                     )
+                    if (heroTrailerReady) {
+                        TrailerSourceBadge(
+                            modifier = Modifier.align(Alignment.TopEnd)
+                                .padding(top = heroChromeTopPadding + muteIconSize + 8.dp,
+                                    end = if (isDesktop) foregroundHorizontalPadding else if (isTablet) 32.dp else 22.dp),
+                        )
+                    }
                     AnimatedContent(
                         targetState = heroTrailerMuted,
                         modifier = Modifier

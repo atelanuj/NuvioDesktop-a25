@@ -40,6 +40,10 @@ Release packages are provided for supported desktop platforms:
 
 ## Development
 
+For a Docker environment with Java and Linux build dependencies preinstalled,
+see [the container build instructions](docker/README.md). Windows MSI packaging
+still requires a Windows build host.
+
 ```bash
 git clone https://github.com/NuvioMedia/NuvioDesktop.git
 cd NuvioDesktop

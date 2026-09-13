@@ -1,0 +1,22 @@
+name: nuvio-build
+services:
+  builder:
+    image: nuvio-builder:java17
+    build:
+      context: ./docker/build
+    init: true
+    mem_limit: 7g
+    cpus: 2
+    volumes:
+      - type: bind
+        source: .
+        target: /source
+        read_only: true
+      - workspace:/workspace
+      - gradle-cache:/cache/gradle
+      - type: bind
+        source: ./build/docker-artifacts
+        target: /artifacts
+volumes:
+  workspace:
+  gradle-cache:

@@ -15,7 +15,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import com.nuvio.app.features.trailer.TrailerExtractionPlatform
 import io.github.kdroidfilter.composemediaplayer.InitialPlayerState
@@ -24,8 +23,6 @@ import io.github.kdroidfilter.composemediaplayer.rememberVideoPlayerState
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
-
-private const val TrailerFillFrameScale = 1.35f
 
 @Composable
 actual fun HeroTrailerPlayerSurface(
@@ -174,14 +171,7 @@ private fun DesktopTrailerPlayerSession(
     Box(modifier = modifier.clipToBounds()) {
         VideoPlayerSurface(
             playerState = player,
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    if (fillFrame) {
-                        scaleX = TrailerFillFrameScale
-                        scaleY = TrailerFillFrameScale
-                    }
-                },
+            modifier = Modifier.fillMaxSize(),
             contentScale = if (fillFrame) ContentScale.Crop else ContentScale.Fit,
         )
     }

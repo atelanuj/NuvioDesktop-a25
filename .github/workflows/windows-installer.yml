@@ -101,7 +101,7 @@ jobs:
       - name: Test trailer resolution and build MSI
         run: |
           # The x64 DLL is built above. Skip the vendored task that also builds ARM64.
-          & .\gradlew.bat :composeApp:desktopTest --tests com.nuvio.app.features.details.HeroTrailerSelectorTest :composeApp:packageMsi `
+          & .\gradlew.bat :composeApp:desktopTest --tests com.nuvio.app.features.details.HeroTrailerSelectorTest --tests com.nuvio.app.features.trailer.CombinedTrailerSourceTest :composeApp:packageMsi `
             -x :composeMediaPlayer:buildNativeWindows `
             "-Pnuvio.webview2.dir=$env:WEBVIEW2_ROOT" `
             '-Pkotlin.compiler.execution.strategy=in-process' `

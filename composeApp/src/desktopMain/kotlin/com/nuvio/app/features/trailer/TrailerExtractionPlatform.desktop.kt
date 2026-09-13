@@ -101,7 +101,7 @@ internal object TrailerExtractionPlatform {
         // Windows Media Foundation accepts muxed media; its player does not attach
         // a separate audio URL. Keep sound available instead of selecting silent video.
         if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
-            for (url in listOfNotNull(bestProgressive?.url, bestManifest?.manifestUrl).distinct()) {
+            for (url in rankCombinedTrailerSources(bestManifest, bestProgressive)) {
                 resolveReachableUrlOrNull(url)?.let { return@withContext TrailerPlaybackSource(it) }
             }
             return@withContext null
@@ -269,3 +269,13 @@ internal object TrailerExtractionPlatform {
         return headers.build()
     }
 }
+
+/** Prefer resolution, then bitrate, while keeping audio in the same stream. */
+internal fun rankCombinedTrailerSources(
+    manifest: ManifestCandidate?,
+    progressive: StreamCandidate?,
+): List<String> = listOfNotNull(
+    manifest?.let { Triple(it.manifestUrl, it.height, it.bandwidth) },
+    progressive?.let { Triple(it.url, it.height, it.bitrate) },
+).sortedWith(compareByDescending<Triple<String, Int, Long>> { it.second }.thenByDescending { it.third })
+    .map { it.first }.distinct()

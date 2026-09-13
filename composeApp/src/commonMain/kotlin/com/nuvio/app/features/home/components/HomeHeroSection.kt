@@ -163,9 +163,9 @@ fun HomeHeroSection(
         if (trailerReady && trailerActive && !trailerFinished) 1f else 0f,
         tween(600), label = "home_hero_trailer_alpha",
     )
-    LaunchedEffect(activeItem.id, activeItem.type, trailerActive) {
+    LaunchedEffect(activeItem.id, activeItem.type, trailerActive, settings.heroTrailerDelayMillis) {
         if (!trailerActive || trailerFinished || trailerSource != null) return@LaunchedEffect
-        delay(1_500L)
+        delay(settings.heroTrailerDelayMillis.toLong())
         trailerSource = kotlinx.coroutines.withTimeoutOrNull(45_000L) {
             resolveHomePosterHoverTrailerPlaybackSource(activeItem)
         }
@@ -275,6 +275,10 @@ fun HomeHeroSection(
                 )
             }
             if (trailerReady && trailerActive && !trailerFinished) {
+                com.nuvio.app.features.details.components.TrailerSourceBadge(
+                    modifier = Modifier.align(Alignment.TopEnd)
+                        .padding(top = 88.dp, end = layout.contentHorizontalPadding + if (isFullscreenActionSupported) 60.dp else 0.dp),
+                )
                 Surface(
                     onClick = HeroTrailerAudioState::toggleMuted,
                     modifier = Modifier.align(Alignment.TopEnd)

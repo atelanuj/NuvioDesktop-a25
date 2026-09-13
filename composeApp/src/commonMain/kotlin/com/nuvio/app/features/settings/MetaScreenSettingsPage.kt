@@ -140,6 +140,12 @@ internal fun LazyListScope.metaScreenSettingsContent(
                         isTablet = isTablet,
                         onCheckedChange = { MetaScreenSettingsRepository.setHeroTrailerPlayback(it) },
                     )
+                    SettingsGroupDivider(isTablet = isTablet)
+                    TrailerDelaySetting(
+                        isTablet = isTablet,
+                        enabled = uiState.heroTrailerPlayback,
+                        delayMillis = uiState.heroTrailerDelayMillis,
+                    )
                 }
                 SettingsGroupDivider(isTablet = isTablet)
                 SettingsSwitchRow(

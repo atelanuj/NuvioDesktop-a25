@@ -703,6 +703,7 @@ fun MetaDetailsScreen(
                 val trailerLifecycle by LocalLifecycleOwner.current.lifecycle.currentStateFlow.collectAsStateWithLifecycle()
                 LaunchedEffect(
                     heroTrailerPlaybackEnabled,
+                    metaScreenSettingsUiState.heroTrailerDelayMillis,
                     heroTrailerCandidate?.id,
                     heroTrailerCandidate?.key,
                     deferredMetaWorkAllowed,
@@ -713,7 +714,7 @@ fun MetaDetailsScreen(
                     if (!deferredMetaWorkAllowed || !heroTrailerPlaybackEnabled || heroTrailerCandidate == null) {
                         return@LaunchedEffect
                     }
-                    delay(1_500L)
+                    delay(metaScreenSettingsUiState.heroTrailerDelayMillis.toLong())
                     val resolvedSource = resolveHeroTrailerPlaybackSource(meta.trailers)
                     if (resolvedSource == null) {
                         heroTrailerFinished = true

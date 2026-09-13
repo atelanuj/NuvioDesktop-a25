@@ -343,6 +343,12 @@ fun DesktopDetailHero(
         }
 
         if (heroTrailerSourceUrl != null) {
+            if (heroTrailerReady) {
+                TrailerSourceBadge(
+                    modifier = Modifier.align(Alignment.TopEnd)
+                        .padding(top = space.s32 + 56.dp, end = actionHorizontalInset + if (isFullscreenActionSupported) 60.dp else 0.dp),
+                )
+            }
             Surface(
                 onClick = onHeroTrailerMuteToggle,
                 enabled = heroTrailerReady,

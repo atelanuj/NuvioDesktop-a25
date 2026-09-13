@@ -1,0 +1,150 @@
+name: Build Windows Installer
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-installer-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    name: Windows x64 MSI
+    runs-on: windows-2022
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      WEBVIEW2_VERSION: 1.0.4078.44
+      CMAKE_BUILD_PARALLEL_LEVEL: 2
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Fetch bundled Windows media runtime
+        run: |
+          git lfs pull --include="composeApp/src/desktopMain/native/windows/runtime/**,composeApp/src/desktopMain/resources/torrserver/windows-amd64/TorrServer.exe" --exclude=""
+          if ($LASTEXITCODE -ne 0) { throw 'Git LFS download failed.' }
+          foreach ($path in @(
+            'composeApp/src/desktopMain/native/windows/runtime/libmpv-2.dll',
+            'composeApp/src/desktopMain/resources/torrserver/windows-amd64/TorrServer.exe'
+          )) {
+            if (-not (Test-Path -LiteralPath $path) -or (Get-Item -LiteralPath $path).Length -lt 1000000) {
+              throw "Missing Windows runtime or unexpanded LFS pointer: $path"
+            }
+          }
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Configure optional app services
+        env:
+          LOCAL_PROPERTIES_BASE64: ${{ secrets.NUVIO_DESKTOP_LOCAL_PROPERTIES_BASE64 }}
+        run: |
+          $lines = @()
+          if (-not [string]::IsNullOrWhiteSpace($env:LOCAL_PROPERTIES_BASE64)) {
+            $payload = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:LOCAL_PROPERTIES_BASE64))
+            $lines = $payload -split "`r?`n" | Where-Object {
+              $_ -notmatch '^\s*(sdk\.dir|NUVIO_RELEASE_.*|NUVIO_MACOS_.*)\s*='
+            }
+          }
+          # Required input file for runtime generation, even when no services are configured.
+          [IO.File]::WriteAllLines((Join-Path $env:GITHUB_WORKSPACE 'local.properties'), [string[]]$lines)
+
+      - name: Verify Windows build tools
+        run: |
+          java -version
+          cmake --version
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $compiler = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $compiler) { throw 'Visual Studio C++ compiler was not found.' }
+          if (-not $env:WIX -or -not (Test-Path (Join-Path $env:WIX 'bin/candle.exe'))) {
+            throw 'WiX 3 is required by Java 17 jpackage to build an MSI.'
+          }
+          (Join-Path $env:WIX 'bin') | Out-File $env:GITHUB_PATH -Encoding utf8 -Append
+          if (-not $env:ANDROID_HOME) { throw 'The runner Android SDK is missing.' }
+
+      - name: Install WebView2 SDK
+        run: |
+          nuget install Microsoft.Web.WebView2 -Version $env:WEBVIEW2_VERSION -OutputDirectory "$env:RUNNER_TEMP\nuget" -DirectDownload -NonInteractive
+          if ($LASTEXITCODE -ne 0) { throw 'WebView2 SDK download failed.' }
+          $webView2Root = Join-Path $env:RUNNER_TEMP "nuget\Microsoft.Web.WebView2.$env:WEBVIEW2_VERSION"
+          if (-not (Test-Path (Join-Path $webView2Root 'build/native/x64/WebView2Loader.dll.lib'))) {
+            throw 'WebView2 x64 loader library is missing.'
+          }
+          "WEBVIEW2_ROOT=$webView2Root" | Out-File $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Build x64 inline trailer player
+        run: |
+          $source = Join-Path $env:GITHUB_WORKSPACE 'vendor/compose-media-player/mediaplayer/src/jvmMain/native/windows'
+          $buildDir = Join-Path $env:RUNNER_TEMP 'nuvio-trailer-x64'
+          $env:NATIVE_LIBS_OUTPUT_DIR = Join-Path $env:GITHUB_WORKSPACE 'vendor/compose-media-player/mediaplayer/build/generated/nativeResources/composemediaplayer/native'
+          cmake -S $source -B $buildDir -G 'Visual Studio 17 2022' -A x64
+          if ($LASTEXITCODE -ne 0) { throw 'Trailer player CMake configuration failed.' }
+          cmake --build $buildDir --config Release --parallel 2
+          if ($LASTEXITCODE -ne 0) { throw 'Trailer player compilation failed.' }
+          if (-not (Test-Path (Join-Path $env:NATIVE_LIBS_OUTPUT_DIR 'win32-x86-64/NativeVideoPlayer.dll'))) {
+            throw 'The inline trailer player DLL was not generated.'
+          }
+
+      - name: Test trailer resolution and build MSI
+        run: |
+          # The x64 DLL is built above. Skip the vendored task that also builds ARM64.
+          & .\gradlew.bat :composeApp:desktopTest --tests com.nuvio.app.features.details.HeroTrailerSelectorTest :composeApp:packageMsi `
+            -x :composeMediaPlayer:buildNativeWindows `
+            "-Pnuvio.webview2.dir=$env:WEBVIEW2_ROOT" `
+            '-Pkotlin.compiler.execution.strategy=in-process' `
+            '-Dorg.gradle.jvmargs=-Xmx5g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8' `
+            --max-workers=2 --no-daemon --no-configuration-cache --console=plain --stacktrace
+          if ($LASTEXITCODE -ne 0) { throw 'Windows tests or MSI build failed.' }
+
+      - name: Verify and checksum installer
+        run: |
+          $packages = @(Get-ChildItem 'composeApp/build/compose/release-msis' -Filter '*.msi')
+          if ($packages.Count -ne 1 -or $packages[0].Length -lt 1000000) {
+            throw 'Expected one Windows MSI installer.'
+          }
+          $package = $packages[0]
+          $hash = (Get-FileHash -LiteralPath $package.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($package.Name)" | Set-Content -LiteralPath "$($package.FullName).sha256" -Encoding utf8
+          @(
+            '### Windows installer ready',
+            '',
+            'Download **Nuvio-Windows-x64** from the Artifacts section of this run.',
+            'Extract the ZIP, then double-click the MSI to install.',
+            '',
+            "Built from commit: $env:GITHUB_SHA",
+            'This personal installer is unsigned. Service integrations require your own app configuration.'
+          ) | Out-File $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nuvio-Windows-x64
+          path: |
+            composeApp/build/compose/release-msis/*.msi
+            composeApp/build/compose/release-msis/*.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-test-reports
+          path: |
+            composeApp/build/reports/tests/desktopTest/
+            composeApp/build/test-results/desktopTest/
+          if-no-files-found: ignore
+          retention-days: 14
